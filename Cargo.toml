@@ -1,0 +1,11 @@
+[package]
+name = "wether"
+version = "0.1.0"
+authors = ["theyeetlebeetle"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "1.0.106", features = ["derive"] }
+serde_json = "1.0.51"
+reqwest = { version = "0.10.4", features = ["blocking"] }
+directories = "2.0"
