@@ -2,17 +2,31 @@ use std::fs::OpenOptions;
 use serde::{Serialize, Deserialize};
 use directories::ProjectDirs;
 
-const API_KEY: &str = "secret";
-
 mod weather;
 use weather::FutureResponse;
 
 #[derive(Deserialize, Debug)]
+enum Location {
+    City(String),
+    Zip(u8),
+}
+
+#[derive(Deserialize, Debug)]
 struct Config {
     unit: String,
-    city: String,
+    loc: Vec<Location>,
     #[serde(default)]
-    country: String,
+    key: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            unit: String::from("imperial"),
+            loc: vec!(Location::City(String::from("Seattle"))),
+            key: String::from("secret"),
+        }
+    }
 }
 
 fn main() {
@@ -20,12 +34,12 @@ fn main() {
         ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
         ).unwrap();
 
-    let conf: Config;
+    let conf = Config::default();
 
     let request_future =
         format!("https://api.openweathermap.org/data/2.5/forecast?q={city}&appid={key}&units={unit}",
                                   city = "Seattle",
-                                  key = API_KEY, //TODO: refactor API_KEY into config
+                                  key = conf.key, //TODO: refactor API_KEY into config
                                   unit = "imperial");
 
     let future_weather = reqwest::blocking::get(&request_future)

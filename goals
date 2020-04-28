@@ -1,2 +1,5 @@
 Current Temperature, possibility of rain, and Temperature for the next few hours
 For saved zip codes of my choosing
+
+"wether" reads the locations you have in your config. You can add and remove multiple ones
+wether <location> shows only the weather for that location
