@@ -1,18 +1,18 @@
-use std::fs::{File,OpenOptions};
-use std::io::BufReader;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, BufReader};
 use serde::{Serialize, Deserialize};
 use directories::ProjectDirs;
 
 mod weather;
 use weather::FutureResponse;
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 enum Location {
     City(String),
     Zip(u8),
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Config {
     unit: String,
     loc: Vec<Location>,
@@ -42,12 +42,12 @@ fn main() {
     let mut responses: Vec<FutureResponse> = Vec::new();
     let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
-    for loc in conf.loc {
+    for loc in &conf.loc {
         let request_fmt = match loc {
             Location::City(c) => format!("{url}q={city}&appid={key}&units={unit}", 
-                                      url=request_base, city=c, key=conf.key, unit=conf.unit),
+                                      url=request_base, city=c, key=&conf.key, unit=&conf.unit),
             Location::Zip(z) => format!("{url}zip={zip}&appid={key}&units={unit}",
-                                      url=request_base, zip=z, key=conf.key, unit=conf.unit),
+                                      url=request_base, zip=z, key=&conf.key, unit=&conf.unit),
         };
 
         let future_weather = reqwest::blocking::get(&request_fmt)
@@ -64,7 +64,7 @@ fn main() {
                 println!("There was an issue: \n{:?}", err);
                 continue;
             }
-            Err(value) => {},
+            Err(_) => {},
         }
 
         let response = serde_json::from_str(&future_weather);
@@ -72,25 +72,35 @@ fn main() {
             Ok(value) => responses.push(value),
             Err(err) => println!("There was an issue: {:?}", err),
         }
-
-        //let response_container: Collective = serde_json::from_str(&future_weather).unwrap();
-        //responses.push(response_container);
-
-        //serde_json::from_str(&future_weather).unwrap();
     }
 
-    //println!("Current temp: \t{:.0}", future.list[0].main.temp);
-    //println!("High/Low: \t{:.0}/{:.0}", future.list[0].main.temp_max, future.list[0].main.temp_min);
-    //println!("Looks like: \t{} || {}", future.list[0].weather[0].main,
-    //         future.list[0].weather[0].description);
+    for each in responses {
+        println!("Current temp: \t{:.0}", each.list[0].main.temp);
+        println!("High/Low: \t{:.0}/{:.0}", each.list[0].main.temp_max, each.list[0].main.temp_min);
+        println!("Looks like: \t{} || {}", each.list[0].weather[0].main,
+                 each.list[0].weather[0].description);
+    }
+
+    save_conf(conf);
 }
 
-//fn printer() {
-//    match &message {
-//        Eror => println!("There was an issue:\n{:?}", message),
-//        FutureResponse => println!("It worked out"),
-//    }
-//}
+fn save_conf(conf: Config) {
+    let file = match OpenOptions::new().write(true).open(
+        ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
+        ) {
+        Ok(f) => f,
+        Err(err) => {
+            println!("Could open config for writing: {:?}", err.kind());
+            panic!();
+        }
+    };
+
+    let writer = BufWriter::new(file);
+    match serde_json::to_writer(writer, &conf) {
+        Ok(_) => println!("Saved config!"),
+        Err(err) => println!("Failed to save config {:?}", err),
+    }
+}
 
 fn load_conf() -> Config {
     let file = match OpenOptions::new().read(true).open(
@@ -98,7 +108,7 @@ fn load_conf() -> Config {
         ) {
         Ok(f) => f,
         Err(err) => {
-            println!("Could open config: {:?}", err.kind());
+            println!("Could not open config: {:?}", err.kind());
             panic!();
         }
     };
