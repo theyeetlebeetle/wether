@@ -63,6 +63,7 @@ fn main() {
             Ok(t) => Location::Zip(t),
             Err(_) => Location::City(new_loc),
         });
+        let _ = save_conf(&conf);
     };
 
     if let Some(locs) = opts.city {
