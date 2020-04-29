@@ -36,17 +36,10 @@ struct Eror {
     message: String,
 }
 
-#[derive(Deserialize, Debug)]
-enum Collective {
-    FutureResponse,
-    Eror,
-}
-
 fn main() {
     let conf = load_conf();
 
-    //let location_queries: Vec<String> = Vec::new();
-    let mut responses: Vec<String> = Vec::new();
+    let mut responses: Vec<FutureResponse> = Vec::new();
     let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
     for loc in conf.loc {
@@ -64,7 +57,24 @@ fn main() {
 
         println!("Beetlejuice");
 
-        let response_container: Collective = serde_json::from_str(&future_weather).unwrap();
+        let test: Result<Eror, serde_json::error::Error> =
+            serde_json::from_str(&future_weather);
+        match test {
+            Ok(err) => {
+                println!("There was an issue: \n{:?}", err);
+                continue;
+            }
+            Err(value) => {},
+        }
+
+        let response = serde_json::from_str(&future_weather);
+        match response {
+            Ok(value) => responses.push(value),
+            Err(err) => println!("There was an issue: {:?}", err),
+        }
+
+        //let response_container: Collective = serde_json::from_str(&future_weather).unwrap();
+        //responses.push(response_container);
 
         //serde_json::from_str(&future_weather).unwrap();
     }
@@ -74,6 +84,13 @@ fn main() {
     //println!("Looks like: \t{} || {}", future.list[0].weather[0].main,
     //         future.list[0].weather[0].description);
 }
+
+//fn printer() {
+//    match &message {
+//        Eror => println!("There was an issue:\n{:?}", message),
+//        FutureResponse => println!("It worked out"),
+//    }
+//}
 
 fn load_conf() -> Config {
     let file = match OpenOptions::new().read(true).open(
