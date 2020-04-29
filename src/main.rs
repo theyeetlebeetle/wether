@@ -1,5 +1,5 @@
 use std::fs::OpenOptions;
-use std::io::{BufWriter, BufReader};
+use std::io::{Write, BufWriter, BufReader};
 use serde::{Serialize, Deserialize};
 use directories::ProjectDirs;
 use clap::Clap;
@@ -26,7 +26,7 @@ struct Opts {
 #[derive(Serialize, Deserialize, Debug)]
 enum Location {
     City(String),
-    Zip(u8),
+    Zip(u16),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -58,10 +58,19 @@ fn main() {
 
     let conf = load_conf();
 
+    if let Some(locs) = opts.city {
+        check_weather(&conf, &vec!(Location::City(locs)));
+    } else {
+        check_weather(&conf, &conf.loc);
+    }
+
+}
+
+fn check_weather(conf: &Config, locs: &Vec<Location>) {
     let mut responses: Vec<FutureResponse> = Vec::new();
     let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
-    for loc in &conf.loc {
+    for loc in locs {
         let request_fmt = match loc {
             Location::City(c) => format!("{url}q={city}&appid={key}&units={unit}", 
                                       url=request_base, city=c, key=&conf.key, unit=&conf.unit),
@@ -69,6 +78,7 @@ fn main() {
                                       url=request_base, zip=z, key=&conf.key, unit=&conf.unit),
         };
 
+        println!("{}", &request_fmt);
         let future_weather = reqwest::blocking::get(&request_fmt)
             .unwrap()
             .text()
@@ -105,17 +115,12 @@ fn save_conf(conf: &Config) -> Result<(),Box<dyn std::error::Error>>{
         ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
         )?;
 
-    let writer = BufWriter::new(file);
-    match serde_json::to_writer(writer, &conf) {
-        Ok(_) => {
-            println!("Saved config!");
-            Ok(())
-        }
-        Err(err) => {
-            println!("Failed to save config {:?}", err);
-            Err(Box::new(err))
-        }
-    }
+    let mut writer = BufWriter::new(&file);
+    let out_file = serde_json::to_string(&conf)?;
+    writer.write_all(out_file.as_bytes())?;
+    file.set_len(out_file.len() as u64)?;
+    println!("Saved config!");
+    Ok(())
 }
 
 fn load_conf() -> Config {

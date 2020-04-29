@@ -7,20 +7,6 @@ pub struct Coord {
     lat: f32
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-enum Location {
-    City(String),
-    Zip(u8),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    unit: String,
-    loc: Vec<Location>,
-    #[serde(default)]
-    key: String,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct Weather {
     id: u16,
