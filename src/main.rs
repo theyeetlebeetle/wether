@@ -1,4 +1,5 @@
-use std::fs::OpenOptions;
+use std::fs::{File,OpenOptions};
+use std::io::BufReader;
 use serde::{Serialize, Deserialize};
 use directories::ProjectDirs;
 
@@ -30,17 +31,28 @@ impl Default for Config {
 }
 
 fn main() {
-    let file = OpenOptions::new().read(true).write(true).create(true).open(
-        ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
-        ).unwrap();
+    let conf = load_conf();
 
-    let conf = Config::default();
+    //let location_queries: Vec<String> = Vec::new();
+    let responses: Vec<String> = Vec::new();
+    let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
-    let request_future =
-        format!("https://api.openweathermap.org/data/2.5/forecast?q={city}&appid={key}&units={unit}",
-                                  city = "Seattle",
-                                  key = conf.key, //TODO: refactor API_KEY into config
-                                  unit = "imperial");
+    for loc in conf.loc {
+        let request_fmt = match loc {
+            Location::City(c) => format!("{url}q={city}&appid={key}&units={unit}", 
+                                      url=request_base, city=c, key=conf.key, unit=conf.unit),
+            Location::Zip(z) => format!("{url}zip={zip}&appid={key}&units={unit}",
+                                      url=request_base, zip=z, key=conf.key, unit=conf.unit),
+        };
+        //location_queries.push(request_fmt);
+        responses.push( {
+            let future_weather = reqwest::blocking::get(&request_fmt)
+            .unwrap()
+            .text()
+            .unwrap();
+            serde_json::from_str(&future_weather).unwrap()
+        });
+    }
 
     let future_weather = reqwest::blocking::get(&request_future)
         .unwrap()
@@ -52,4 +64,19 @@ fn main() {
     println!("High/Low: \t{:.0}/{:.0}", future.list[0].main.temp_max, future.list[0].main.temp_min);
     println!("Looks like: \t{} || {}", future.list[0].weather[0].main,
              future.list[0].weather[0].description);
+}
+
+fn load_conf() -> Config {
+    let file = OpenOptions::new().read(true).write(true).create(true).open(
+        ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
+        ).unwrap();
+    let reader = BufReader::new(file);
+
+    match serde_json::from_reader(reader) {
+        Ok(conf) => conf,
+        Err(err) => {
+            println!("Could not read config file, using defaults: {}", err);
+            Config::default()
+        }
+    }
 }
