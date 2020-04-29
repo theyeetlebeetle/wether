@@ -7,6 +7,22 @@ use clap::Clap;
 mod weather;
 use weather::FutureResponse;
 
+/// A really bad cli app to check weather in one or more cities
+#[derive(Clap)]
+#[clap(version = "0.1", author = "yeetlebeetle")]
+struct Opts {
+    /// Adds a city to the config file and saves it
+    #[clap(short = "a", long = "add")]
+    add: Option<String>,
+    /// Removes a city from the config file and saves it 
+    #[clap(short = "r", long = "remove")]
+    remove: Option<String>,
+    /// Check the weather of a single city
+    city: Option<String>,
+    //#[clap(subcommand)]
+    //subcmd: SubCommand,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 enum Location {
     City(String),
@@ -38,6 +54,8 @@ struct Eror {
 }
 
 fn main() {
+    let opts: Opts = Opts::parse();
+
     let conf = load_conf();
 
     let mut responses: Vec<FutureResponse> = Vec::new();
