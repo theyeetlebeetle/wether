@@ -82,7 +82,7 @@ pub struct ListSys {
 pub struct City {
     #[serde(default)]
     id: u32,
-    name: String,
+    pub name: String,
     coord: Coord,
     pub country: String,
     #[serde(default)]

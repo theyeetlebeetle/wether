@@ -2,6 +2,7 @@ use std::fs::OpenOptions;
 use std::io::{BufWriter, BufReader};
 use serde::{Serialize, Deserialize};
 use directories::ProjectDirs;
+use clap::Clap;
 
 mod weather;
 use weather::FutureResponse;
@@ -55,8 +56,6 @@ fn main() {
             .text()
             .unwrap();
 
-        println!("Beetlejuice");
-
         let test: Result<Eror, serde_json::error::Error> =
             serde_json::from_str(&future_weather);
         match test {
@@ -75,42 +74,41 @@ fn main() {
     }
 
     for each in responses {
+        println!("{}", each.city.name);
         println!("Current temp: \t{:.0}", each.list[0].main.temp);
         println!("High/Low: \t{:.0}/{:.0}", each.list[0].main.temp_max, each.list[0].main.temp_min);
         println!("Looks like: \t{} || {}", each.list[0].weather[0].main,
                  each.list[0].weather[0].description);
     }
-
-    save_conf(conf);
 }
 
-fn save_conf(conf: Config) {
-    let file = match OpenOptions::new().write(true).open(
+fn save_conf(conf: &Config) -> Result<(),Box<dyn std::error::Error>>{
+    let file = OpenOptions::new().write(true).create(true).open(
         ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
-        ) {
-        Ok(f) => f,
-        Err(err) => {
-            println!("Could open config for writing: {:?}", err.kind());
-            panic!();
-        }
-    };
+        )?;
 
     let writer = BufWriter::new(file);
     match serde_json::to_writer(writer, &conf) {
-        Ok(_) => println!("Saved config!"),
-        Err(err) => println!("Failed to save config {:?}", err),
+        Ok(_) => {
+            println!("Saved config!");
+            Ok(())
+        }
+        Err(err) => {
+            println!("Failed to save config {:?}", err);
+            Err(Box::new(err))
+        }
     }
 }
 
 fn load_conf() -> Config {
-    let file = match OpenOptions::new().read(true).open(
+    let file = match OpenOptions::new().write(true).create(true).read(true).open(
         ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
         ) {
         Ok(f) => f,
         Err(err) => {
             println!("Could not open config: {:?}", err.kind());
             panic!();
-        }
+        },
     };
     let reader = BufReader::new(file);
 
@@ -118,7 +116,9 @@ fn load_conf() -> Config {
         Ok(conf) => conf,
         Err(err) => {
             println!("Could not read config file, using defaults: {}", err);
-            Config::default()
+            let conf = Config::default();
+            let _ = save_conf(&conf);
+            conf
         }
     }
 }
