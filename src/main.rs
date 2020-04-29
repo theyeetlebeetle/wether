@@ -23,7 +23,7 @@ struct Opts {
     //subcmd: SubCommand,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 enum Location {
     City(String),
     Zip(u16),
@@ -66,6 +66,21 @@ fn main() {
         let _ = save_conf(&conf);
     };
 
+    if let Some(rem_loc) = opts.remove {
+        match check_city(&conf, match rem_loc.parse::<u16>() {
+            Ok(t) => Location::Zip(t),
+            Err(_) => Location::City(rem_loc),
+        }) {
+            Some(i) => {
+                conf.loc.remove(i);
+                let _ = save_conf(&conf);
+            },
+            None => {
+                println!("Location not in config file");
+            },
+        }
+    };
+
     if let Some(locs) = opts.city {
         check_weather(&conf, &vec!( match locs.parse::<u16>() {
             Ok(t) => Location::Zip(t),
@@ -75,6 +90,15 @@ fn main() {
         check_weather(&conf, &conf.loc);
     }
 
+}
+
+fn check_city(conf: &Config, needle: Location) -> Option<usize> {
+    for (index,loc) in conf.loc.iter().enumerate() {
+        if *loc == needle {
+            return Some(index);
+        }
+    }
+    None
 }
 
 fn check_weather(conf: &Config, locs: &Vec<Location>) {
@@ -112,7 +136,8 @@ fn check_weather(conf: &Config, locs: &Vec<Location>) {
     }
 
     for each in responses {
-        println!("{}", each.city.name);
+        println!("===========================================");
+        println!("{}, {}", each.city.name, each.city.country);
         println!("Current temp: \t{:.0}", each.list[0].main.temp);
         println!("High/Low: \t{:.0}/{:.0}", each.list[0].main.temp_max, each.list[0].main.temp_min);
         println!("Looks like: \t{} || {}", each.list[0].weather[0].main,
