@@ -30,11 +30,23 @@ impl Default for Config {
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct Eror {
+    cod: u16,
+    message: String,
+}
+
+#[derive(Deserialize, Debug)]
+enum Collective {
+    FutureResponse,
+    Eror,
+}
+
 fn main() {
     let conf = load_conf();
 
     //let location_queries: Vec<String> = Vec::new();
-    let responses: Vec<String> = Vec::new();
+    let mut responses: Vec<String> = Vec::new();
     let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
     for loc in conf.loc {
@@ -44,32 +56,35 @@ fn main() {
             Location::Zip(z) => format!("{url}zip={zip}&appid={key}&units={unit}",
                                       url=request_base, zip=z, key=conf.key, unit=conf.unit),
         };
-        //location_queries.push(request_fmt);
-        responses.push( {
-            let future_weather = reqwest::blocking::get(&request_fmt)
+
+        let future_weather = reqwest::blocking::get(&request_fmt)
             .unwrap()
             .text()
             .unwrap();
-            serde_json::from_str(&future_weather).unwrap()
-        });
+
+        println!("Beetlejuice");
+
+        let response_container: Collective = serde_json::from_str(&future_weather).unwrap();
+
+        //serde_json::from_str(&future_weather).unwrap();
     }
 
-    let future_weather = reqwest::blocking::get(&request_future)
-        .unwrap()
-        .text()
-        .unwrap();
-    let future: FutureResponse = serde_json::from_str(&future_weather).unwrap();
-
-    println!("Current temp: \t{:.0}", future.list[0].main.temp);
-    println!("High/Low: \t{:.0}/{:.0}", future.list[0].main.temp_max, future.list[0].main.temp_min);
-    println!("Looks like: \t{} || {}", future.list[0].weather[0].main,
-             future.list[0].weather[0].description);
+    //println!("Current temp: \t{:.0}", future.list[0].main.temp);
+    //println!("High/Low: \t{:.0}/{:.0}", future.list[0].main.temp_max, future.list[0].main.temp_min);
+    //println!("Looks like: \t{} || {}", future.list[0].weather[0].main,
+    //         future.list[0].weather[0].description);
 }
 
 fn load_conf() -> Config {
-    let file = OpenOptions::new().read(true).write(true).create(true).open(
+    let file = match OpenOptions::new().read(true).open(
         ProjectDirs::from("org","theyeetlebeetle","wether").unwrap().config_dir()
-        ).unwrap();
+        ) {
+        Ok(f) => f,
+        Err(err) => {
+            println!("Could open config: {:?}", err.kind());
+            panic!();
+        }
+    };
     let reader = BufReader::new(file);
 
     match serde_json::from_reader(reader) {
