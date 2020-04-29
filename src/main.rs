@@ -56,10 +56,20 @@ struct Eror {
 fn main() {
     let opts: Opts = Opts::parse();
 
-    let conf = load_conf();
+    let mut conf = load_conf();
+
+    if let Some(new_loc) = opts.add {
+        conf.loc.push( match new_loc.parse::<u16>() {
+            Ok(t) => Location::Zip(t),
+            Err(_) => Location::City(new_loc),
+        });
+    };
 
     if let Some(locs) = opts.city {
-        check_weather(&conf, &vec!(Location::City(locs)));
+        check_weather(&conf, &vec!( match locs.parse::<u16>() {
+            Ok(t) => Location::Zip(t),
+            Err(_) => Location::City(locs),
+        }));
     } else {
         check_weather(&conf, &conf.loc);
     }
@@ -78,7 +88,6 @@ fn check_weather(conf: &Config, locs: &Vec<Location>) {
                                       url=request_base, zip=z, key=&conf.key, unit=&conf.unit),
         };
 
-        println!("{}", &request_fmt);
         let future_weather = reqwest::blocking::get(&request_fmt)
             .unwrap()
             .text()
