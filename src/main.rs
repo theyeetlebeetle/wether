@@ -7,15 +7,17 @@ use clap::Clap;
 mod weather;
 use weather::FutureResponse;
 
-/// A really bad cli app to check weather in one or more cities
+/// A really bad cli app to check weather in one or more cities. 
+/// 
+/// You must have an api key from OpenWeatherMap in your config file 
 #[derive(Clap)]
 #[clap(version = "0.1", author = "yeetlebeetle")]
 struct Opts {
     /// Adds a city to the config file and saves it
-    #[clap(short = "a", long = "add")]
+    #[clap(short = "a", long = "add", value_name="city")]
     add: Option<String>,
     /// Removes a city from the config file and saves it 
-    #[clap(short = "r", long = "remove")]
+    #[clap(short = "r", long = "remove", value_name="city")]
     remove: Option<String>,
     /// Check the weather of a single city
     city: Option<String>,
