@@ -1,8 +1,10 @@
 use std::fs::OpenOptions;
 use std::io::{Write, BufWriter, BufReader};
 use serde::{Serialize, Deserialize};
+use reqwest::Client;
 use directories::ProjectDirs;
 use clap::Clap;
+use tokio;
 
 mod weather;
 use weather::FutureResponse;
@@ -55,7 +57,8 @@ struct Eror {
     message: String,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
 
     let mut conf = load_conf();
@@ -83,15 +86,22 @@ fn main() {
         }
     };
 
-    if let Some(locs) = opts.city {
-        check_weather(&conf, &vec!( match locs.parse::<u16>() {
+    let client = Client::new();
+    if let Some(loc) = opts.city {
+        check_weather(&conf, &client, &match loc.parse::<u16>() {
             Ok(t) => Location::Zip(t),
-            Err(_) => Location::City(locs),
-        }));
+            Err(_) => Location::City(loc),
+        })
+        .await
+        .unwrap();
     } else {
-        check_weather(&conf, &conf.loc);
+        for loc in &conf.loc {
+            check_weather(&conf, &client, loc)
+                .await
+                .unwrap();
+        }
     }
-
+    Ok(())
 }
 
 fn check_city(conf: &Config, needle: Location) -> Option<usize> {
@@ -103,48 +113,47 @@ fn check_city(conf: &Config, needle: Location) -> Option<usize> {
     None
 }
 
-fn check_weather(conf: &Config, locs: &Vec<Location>) {
-    let mut responses: Vec<FutureResponse> = Vec::new();
+async fn check_weather(conf: &Config, client: &Client, loc: &Location) -> Result<(), reqwest::Error> {
     let request_base = String::from("https://api.openweathermap.org/data/2.5/forecast?");
 
-    for loc in locs {
-        let request_fmt = match loc {
-            Location::City(c) => format!("{url}q={city}&appid={key}&units={unit}", 
-                                      url=request_base, city=c, key=&conf.key, unit=&conf.unit),
-            Location::Zip(z) => format!("{url}zip={zip}&appid={key}&units={unit}",
-                                      url=request_base, zip=z, key=&conf.key, unit=&conf.unit),
-        };
+    let request_fmt = match loc {
+        Location::City(c) => format!("{url}q={city}&appid={key}&units={unit}", 
+                                  url=request_base, city=c, key=&conf.key, unit=&conf.unit),
+        Location::Zip(z) => format!("{url}zip={zip}&appid={key}&units={unit}",
+                                  url=request_base, zip=z, key=&conf.key, unit=&conf.unit),
+    };
 
-        let future_weather = reqwest::blocking::get(&request_fmt)
-            .unwrap()
-            .text()
-            .unwrap();
+    let future_weather = client.get(&request_fmt)
+        .send()
+        .await?
+        .text()
+        .await?;
 
-        let test: Result<Eror, serde_json::error::Error> =
-            serde_json::from_str(&future_weather);
-        match test {
-            Ok(err) => {
-                println!("There was an issue: \n{:?}", err);
-                continue;
-            }
-            Err(_) => {},
+    let test: Result<Eror, serde_json::error::Error> =
+        serde_json::from_str(&future_weather);
+    match test {
+        Ok(err) => {
+            println!("There was an issue: \n{:?}", err);
+            return Ok(()); //look I really don't know how to handle these errors don't judge me
         }
-
-        let response = serde_json::from_str(&future_weather);
-        match response {
-            Ok(value) => responses.push(value),
-            Err(err) => println!("There was an issue: {:?}", err),
-        }
+        Err(_) => {},
     }
 
-    for each in responses {
-        println!("===========================================");
-        println!("{}, {}", each.city.name, each.city.country);
-        println!("Current temp: \t{:.0}", each.list[0].main.temp);
-        println!("High/Low: \t{:.0}/{:.0}", each.list[0].main.temp_max, each.list[0].main.temp_min);
-        println!("Looks like: \t{} || {}", each.list[0].weather[0].main,
-                 each.list[0].weather[0].description);
-    }
+    let response: FutureResponse = match serde_json::from_str(&future_weather) {
+        Ok(value) => value,
+        Err(err) => {
+            println!("There was an issue: {:?}", err);
+            return Ok(());
+        }
+    };
+
+    println!("===========================================");
+    println!("{}, {}", response.city.name, response.city.country);
+    println!("Current temp: \t{:.0}", response.list[0].main.temp);
+    println!("High/Low: \t{:.0}/{:.0}", response.list[0].main.temp_max, response.list[0].main.temp_min);
+    println!("Looks like: \t{} || {}", response.list[0].weather[0].main,
+             response.list[0].weather[0].description);
+    Ok(())
 }
 
 fn save_conf(conf: &Config) -> Result<(),Box<dyn std::error::Error>>{
